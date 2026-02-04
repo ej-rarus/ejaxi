@@ -4,7 +4,7 @@ import type React from "react"
 
 import { motion, useInView } from "framer-motion"
 import { useRef, useState } from "react"
-import { Send, CheckCircle } from "lucide-react"
+import { Send, CheckCircle, AlertCircle, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
@@ -12,13 +12,36 @@ export function NewsletterSection() {
   const ref = useRef(null)
   const isInView = useInView(ref, { once: true, margin: "-100px" })
   const [email, setEmail] = useState("")
-  const [isSubmitted, setIsSubmitted] = useState(false)
+  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle")
+  const [errorMessage, setErrorMessage] = useState("")
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (email) {
-      setIsSubmitted(true)
+    if (!email) return
+
+    setStatus("loading")
+    setErrorMessage("")
+
+    try {
+      const response = await fetch("/api/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setStatus("error")
+        setErrorMessage(data.error || "구독 처리 중 오류가 발생했습니다.")
+        return
+      }
+
+      setStatus("success")
       setEmail("")
+    } catch {
+      setStatus("error")
+      setErrorMessage("네트워크 오류가 발생했습니다.")
     }
   }
 
@@ -60,26 +83,7 @@ export function NewsletterSection() {
             animate={isInView ? { opacity: 1, y: 0 } : {}}
             transition={{ delay: 0.3 }}
           >
-            {!isSubmitted ? (
-              <>
-                <Input
-                  type="email"
-                  placeholder="이메일 주소를 입력하세요"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="flex-1 h-12 bg-card border-border focus:border-cyan-500"
-                  required
-                />
-                <Button
-                  type="submit"
-                  size="lg"
-                  className="h-12 px-8 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white border-0"
-                >
-                  <Send className="mr-2 h-4 w-4" />
-                  구독하기
-                </Button>
-              </>
-            ) : (
+            {status === "success" ? (
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -88,8 +92,47 @@ export function NewsletterSection() {
                 <CheckCircle className="h-5 w-5" />
                 <span className="font-medium">구독해 주셔서 감사합니다!</span>
               </motion.div>
+            ) : (
+              <>
+                <Input
+                  type="email"
+                  placeholder="이메일 주소를 입력하세요"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="flex-1 h-12 bg-card border-border focus:border-cyan-500"
+                  required
+                  disabled={status === "loading"}
+                />
+                <Button
+                  type="submit"
+                  size="lg"
+                  className="h-12 px-8 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white border-0"
+                  disabled={status === "loading"}
+                >
+                  {status === "loading" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Send className="mr-2 h-4 w-4" />
+                      구독하기
+                    </>
+                  )}
+                </Button>
+              </>
             )}
           </motion.form>
+
+          {/* Error Message */}
+          {status === "error" && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-center justify-center gap-2 mt-3 text-red-500 text-sm"
+            >
+              <AlertCircle className="h-4 w-4" />
+              <span>{errorMessage}</span>
+            </motion.div>
+          )}
 
           {/* Social Proof */}
           <motion.div
